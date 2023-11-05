@@ -17,26 +17,34 @@ class ParserModel(nn.Module):
         self.embed_to_hidden_weight = nn.Parameter(torch.empty(self.n_features * self.embed_size, self.hidden_size))
         nn.init.xavier_uniform_(self.embed_to_hidden_weight)
 
-        self.embed_to_hidden_bias = nn.Parameter(torch.empty(self.hidden_size))
+        # self.embed_to_hidden_bias = nn.Parameter(torch.empty(self.hidden_size))
+        self.embed_to_hidden_bias = nn.Parameter(torch.Tensor(self.hidden_size))
         nn.init.uniform_(self.embed_to_hidden_bias)
 
         self.dropout = nn.Dropout(self.dropout_prob)
-        self.hidden_to_logits_weight = nn.Parameter(torch.empty(self.hidden_size, self.n_classes))
+        # self.hidden_to_logits_weight = nn.Parameter(torch.empty(self.hidden_size, self.n_classes))
+        self.hidden_to_logits_weight = nn.Parameter(torch.Tensor(self.hidden_size, self.n_classes))
         nn.init.xavier_uniform_(self.hidden_to_logits_weight)
 
-        self.hidden_to_logits_bias = nn.Parameter(torch.empty(self.n_classes))
+        # self.hidden_to_logits_bias = nn.Parameter(torch.empty(self.n_classes))
+        self.hidden_to_logits_bias = nn.Parameter(torch.Tensor(self.n_classes))
         nn.init.uniform_(self.hidden_to_logits_bias)
 
     def embedding_lookup(self, w):
-        x = torch.matmul(w, self.embeddings)
-        x = x.view(-1, self.n_features * self.embed_size)
+        # x = torch.matmul(w, self.embeddings)
+        # x = x.view(-1, self.n_features * self.embed_size)
+        x = self.embeddings[w.flatten()].view(w.shape[0], -1)
         return x
 
     def forward(self, w):
-        x = torch.matmul(w, self.embeddings)
-        x = x.view(-1, self.n_features * self.embed_size)
-        x = torch.matmul(x, self.embed_to_hidden_weight) + self.embed_to_hidden_bias
-        x = F.relu(x)
+        # x = torch.matmul(w, self.embeddings)
+        # x = x.view(-1, self.n_features * self.embed_size)
+        # x = torch.matmul(x, self.embed_to_hidden_weight) + self.embed_to_hidden_bias
+        # x = F.relu(x)
+        # x = self.dropout(x)
+        # logits = torch.matmul(x, self.hidden_to_logits_weight) + self.hidden_to_logits_bias
+        x = self.embedding_lookup(w)
+        x = F.relu(torch.matmul(x, self.embed_to_hidden_weight) + self.embed_to_hidden_bias)
         x = self.dropout(x)
         logits = torch.matmul(x, self.hidden_to_logits_weight) + self.hidden_to_logits_bias
         return logits

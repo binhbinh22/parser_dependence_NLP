@@ -6,26 +6,35 @@ class PartialParse(object):
 
         # Initialize stack, buffer, and dependencies
         self.stack = ["ROOT"]
-        self.buffer = sentence[:]
+        # self.buffer = sentence[:]
+        self.buffer = list(sentence)
         self.dependencies = []
 
     def parse_step(self, transition):
         if transition == "S":
             # Shift: Move the first item from buffer to the stack
-            self.stack.append(self.buffer.pop(0))
+            # self.stack.append(self.buffer.pop(0))
+            if len(self.buffer) > 0:
+                self.stack.append(self.buffer.pop(0))
         elif transition == "LA":
             # Left Arc: Add a dependency from the second item on the stack to the first item
-            dependent = self.stack.pop(-2)
-            head = self.stack[-1]
-            self.dependencies.append((head, dependent))
+            if len(self.stack) > 1:
+                dependent = self.stack.pop(-2)
+                head = self.stack[-1]
+                self.dependencies.append((head, dependent))
         elif transition == "RA":
             # Right Arc: Add a dependency from the first item on the stack to the second item
-            dependent = self.stack.pop(-1)
-            head = self.stack[-1]
-            self.dependencies.append((head, dependent))
+            if len(self.stack) > 1:
+                dependent = self.stack.pop(-1)
+                head = self.stack[-1]
+                self.dependencies.append((head, dependent))
         else:
             raise ValueError("Invalid transition: {}".format(transition))
 
+    def is_final(self):
+        # A parsing step is final if the buffer is empty and the stack contains only 'ROOT'
+        return len(self.buffer) == 0 and len(self.stack) == 1 and self.stack[0] == 'ROOT'
+        
     def parse(self, transitions):
         for transition in transitions:
             self.parse_step(transition)
@@ -36,19 +45,39 @@ def minibatch_parse(sentences, model, batch_size):
     dependencies = []
     partial_parses = [PartialParse(sentence) for sentence in sentences]
 
-    while len(partial_parses) > 0:
-        # Take a batch of partial parses
-        current_batch = partial_parses[:batch_size]
-        transitions = model.predict(current_batch)
+    # while len(partial_parses) > 0:
+    #     # Take a batch of partial parses
+    #     current_batch = partial_parses[:batch_size]
+    #     transitions = model.predict(current_batch)
         
-        for i in range(len(transitions)):
-            current_batch[i].parse_step(transitions[i])
+    #     for i in range(len(transitions)):
+    #         current_batch[i].parse_step(transitions[i])
 
-        completed_parses = [pp for pp in current_batch if len(pp.buffer) == 0]
-        partial_parses = [pp for pp in current_batch if len(pp.buffer) > 0]
+    #     completed_parses = [pp for pp in current_batch if len(pp.buffer) == 0]
+    #     partial_parses = [pp for pp in current_batch if len(pp.buffer) > 0]
 
-        dependencies.extend([tuple(sorted(pp.dependencies)) for pp in completed_parses])
+    #     dependencies.extend([tuple(sorted(pp.dependencies)) for pp in completed_parses])
+    # Iterate through batches
+    for i in range(0, len(partial_parses), batch_size):
+        # Take a batch of PartialParses
+        batch = partial_parses[i:i+batch_size]
 
+        # Iterate until all PartialParses in the batch are done
+        while any(not pp.is_final() for pp in batch):
+            # Get the unfinished parses (shallow copy)
+            unfinished_parses = batch[:]
+
+            # Predict transitions for the unfinished parses using the model
+            transitions = model.predict(unfinished_parses)
+
+            # Apply predicted transitions to each parse in the batch
+            for pp, transition in zip(unfinished_parses, transitions):
+                if not pp.is_final():
+                    pp.parse_step(transition)
+
+        # Retrieve dependencies for the finished parses in the batch
+        dependencies.extend([pp.dependencies for pp in batch if pp.is_final()])
+        
     return dependencies
 
 
